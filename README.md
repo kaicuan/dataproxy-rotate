@@ -108,14 +108,30 @@ by IP, that lookup never reaches the phone. Enable remote DNS on the client.
 Nothing is collected or sent anywhere. Traffic counters and the device list are
 in-memory only and reset when the proxy stops.
 
-## Building
+## Developing and building
+
+The build runs in Docker, so the host does not need Java, Gradle, or the Android
+SDK. Install Docker with the Compose plugin. Compose builds the Docker image
+automatically the first time you build.
 
 ```bash
-./gradlew :app:assembleRelease
+./dev build                 # build debug APK
+./dev install               # install the built debug APK
+./dev build release         # build release APK
+./dev install release       # install the built, signed release APK
+./dev clean                 # remove Docker image and Gradle cache
 ```
 
-Needs JDK 17 and Android SDK 36. Signing is optional: without a keystore at
-`app/keystore/dataproxy-release.jks` the build produces an unsigned APK.
+Run the matching build command before install. Install uses host `adb` and its
+default device, so leave only the intended phone connected. The container has
+no USB access. APKs are written into the project directory, and Gradle's
+download cache stays in a Docker volume. Release install needs a signing
+keystore. `clean` removes the Docker image and cache volume but leaves APKs
+under `app/build/`. The next build recreates the Docker image after cleanup.
+
+Release signing is optional. With `app/keystore/dataproxy-release.jks`, the
+build produces `app/build/outputs/apk/release/app-release.apk`. Without it, the
+output is `app/build/outputs/apk/release/app-release-unsigned.apk`.
 
 ## License
 

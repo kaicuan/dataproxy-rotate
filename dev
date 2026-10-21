@@ -1,0 +1,72 @@
+#!/bin/sh
+set -e
+
+cd "$(dirname "$0")"
+export HOST_UID="$(id -u)"
+export HOST_GID="$(id -g)"
+
+usage() {
+  cat <<'EOF'
+Commands:
+  ./dev build             Build the debug APK
+  ./dev build release     Build the release APK
+  ./dev install           Install the existing debug APK with adb
+  ./dev install release   Install the existing signed release APK
+  ./dev clean             Remove the Docker image and Gradle cache
+
+Build the matching APK before installing it. adb uses its default device.
+EOF
+}
+
+case "${1:-}" in
+  build)
+    case "${2:-debug}" in
+      debug)
+        docker compose run --rm android-build :app:assembleDebug
+        ;;
+      release)
+        docker compose run --rm android-build :app:assembleRelease
+        ;;
+      *)
+        printf 'Usage: ./dev build [release]\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  install)
+    if [ "$#" -gt 2 ]; then
+      usage >&2
+      exit 2
+    fi
+    case "${2:-debug}" in
+      debug)
+        APK=app/build/outputs/apk/debug/app-debug.apk
+        ;;
+      release)
+        APK=app/build/outputs/apk/release/app-release.apk
+        if [ ! -f "$APK" ]; then
+          printf 'A signed release APK is required. Check the keystore and run ./dev build release first.\n' >&2
+          exit 1
+        fi
+        ;;
+      *)
+        usage >&2
+        exit 2
+        ;;
+    esac
+    adb install -r "$APK"
+    ;;
+  clean)
+    docker compose down --volumes --rmi all
+    printf 'Build cache may be left in BuildKit. Reclaim it by running:\n'
+    printf 'docker builder prune -f\n'
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    printf 'Unknown command: %s\n\n' "${1:-}"
+    usage >&2
+    exit 2
+    ;;
+esac
