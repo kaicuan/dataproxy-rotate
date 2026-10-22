@@ -14,21 +14,17 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -70,9 +66,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dataproxy.ui.components.ScreenFrame
+import com.dataproxy.ui.components.ScreenScrollColumn
+import com.dataproxy.ui.components.TopBar
 import com.dataproxy.ui.theme.Accent
 import com.dataproxy.ui.theme.OutlineSoft
 import com.dataproxy.ui.theme.OutlineStrong
+import com.dataproxy.ui.theme.Spacing
 import com.dataproxy.ui.theme.SurfaceHigh
 import com.dataproxy.ui.theme.SurfaceLow
 import com.dataproxy.ui.theme.SurfaceMid
@@ -164,37 +164,39 @@ fun AntiKillScreen(
         AntiKillPreferences.setStepDone(context, step, next)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp)
-            .padding(top = 4.dp, bottom = 12.dp),
+    ScreenFrame(
+        header = {
+            TopBar(
+                title = "Anti-Kill",
+                onBack = onBack,
+                action = {
+                    IconButton(onClick = { infoExpanded = !infoExpanded }) {
+                        Icon(
+                            imageVector = Icons.Rounded.HelpOutline,
+                            contentDescription = if (infoExpanded) "Hide explanation" else "What is this?",
+                            tint = if (infoExpanded) Accent else TextSecondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                },
+            )
+        },
     ) {
-        TopBar(
-            title = "Anti-Kill",
-            onBack = onBack,
-            action = {
-                IconButton(onClick = { infoExpanded = !infoExpanded }) {
-                    Icon(
-                        imageVector = Icons.Rounded.HelpOutline,
-                        contentDescription = if (infoExpanded) "Hide explanation" else "What is this?",
-                        tint = if (infoExpanded) Accent else TextSecondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            },
-        )
-        Spacer(Modifier.height(8.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        ScreenScrollColumn {
             WhatIsThisBanner(visible = infoExpanded, onClose = { infoExpanded = false })
+            Spacer(
+                Modifier.height(
+                    if (infoExpanded) Spacing.itemGap else 0.dp,
+                ),
+            )
             HeroCard(pct = pct, granted = grantedCount, total = total, allDone = allDone)
+            Spacer(Modifier.height(Spacing.sectionGap))
             AutoStartCard(enabled = autoStart, onToggle = viewModel::setAutoStartOnBoot)
-            AntiKillStep.entries.forEach { step ->
+            Spacer(Modifier.height(Spacing.sectionGap))
+            AntiKillStep.entries.forEachIndexed { index, step ->
+                if (index > 0) {
+                    Spacer(Modifier.height(Spacing.itemGap))
+                }
                 StepCard(
                     step = step,
                     granted = isGranted(step),

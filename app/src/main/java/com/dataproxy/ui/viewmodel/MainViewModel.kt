@@ -157,19 +157,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean(ProxyService.PREF_AUTH_ENABLED, enabled).apply()
     }
 
-    fun setAuthUsername(value: String) {
-        _authUsername.value = value
-        prefs.edit().putString(ProxyService.PREF_AUTH_USERNAME, value).apply()
+    fun setAuthCredentials(username: String, password: String) {
+        _authUsername.value = username
+        _authPassword.value = password
+        prefs.edit()
+            .putString(ProxyService.PREF_AUTH_USERNAME, username)
+            .putString(ProxyService.PREF_AUTH_PASSWORD, password)
+            .apply()
     }
 
-    fun setAuthPassword(value: String) {
-        _authPassword.value = value
-        prefs.edit().putString(ProxyService.PREF_AUTH_PASSWORD, value).apply()
-    }
-
-    /** Clamped to >= 0. 0 means unlimited, same sentinel Socks5Server reads. */
+    /** Clamped to 0..9999. 0 means unlimited, same sentinel Socks5Server reads. */
     fun setMaxConnections(value: Int) {
-        val clamped = value.coerceAtLeast(0)
+        val clamped = value.coerceIn(0, MAX_CONNECTIONS_LIMIT)
         _maxConnections.value = clamped
         prefs.edit().putInt(ProxyService.PREF_MAX_CONNECTIONS, clamped).apply()
     }
@@ -179,14 +178,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _autoStartOnBoot.value = enabled
     }
 
-    fun cycleThemeMode() {
-        val next = when (_themeMode.value) {
-            ThemeMode.System -> ThemeMode.Light
-            ThemeMode.Light -> ThemeMode.Dark
-            ThemeMode.Dark -> ThemeMode.System
-        }
-        _themeMode.value = next
-        prefs.edit().putString(KEY_THEME_MODE, next.key).apply()
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        prefs.edit().putString(KEY_THEME_MODE, mode.key).apply()
     }
 
     fun cycleRateUnit() {
@@ -220,5 +214,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val KEY_THEME_MODE = "theme_mode"
+
+        /** Upper bound for the user-configurable connection cap. */
+        const val MAX_CONNECTIONS_LIMIT = 9999
     }
 }

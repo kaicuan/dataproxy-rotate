@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,9 +29,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dataproxy.ui.theme.Accent
@@ -71,16 +72,6 @@ fun PowerButton(
         ),
         label = "pulse-alpha",
     )
-    val spinPhase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "spin-phase",
-    )
-
     val outlineSoftColor = OutlineSoft
     val surfaceLowColor = SurfaceLow
     Column(
@@ -128,46 +119,30 @@ fun PowerButton(
                         topLeft = topLeft, size = arcSize,
                         style = Stroke(width = stroke, cap = StrokeCap.Round),
                     )
-                    PowerState.Paused -> drawArc(
-                        color = accent.copy(alpha = pulse * 0.9f),
-                        startAngle = -90f, sweepAngle = 360f, useCenter = false,
-                        topLeft = topLeft, size = arcSize,
-                        style = Stroke(
-                            width = stroke, cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(
-                                intervals = floatArrayOf(12f, 10f),
-                            ),
-                        ),
-                    )
-                    PowerState.Starting -> drawArc(
-                        color = accent,
-                        startAngle = spinPhase, sweepAngle = 110f, useCenter = false,
-                        topLeft = topLeft, size = arcSize,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round),
-                    )
+                    PowerState.Paused -> Unit
+                    PowerState.Starting -> Unit
                     PowerState.Error -> drawArc(
                         color = Danger,
                         startAngle = -90f, sweepAngle = 360f, useCenter = false,
                         topLeft = topLeft, size = arcSize,
-                        style = Stroke(
-                            width = stroke, cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(
-                                intervals = floatArrayOf(20f, 14f),
-                            ),
-                        ),
+                        style = Stroke(width = stroke, cap = StrokeCap.Round),
                     )
                     PowerState.Off -> drawArc(
                         color = AccentDim.copy(alpha = 0.35f),
                         startAngle = -90f, sweepAngle = 360f, useCenter = false,
                         topLeft = topLeft, size = arcSize,
-                        style = Stroke(
-                            width = stroke, cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(
-                                intervals = floatArrayOf(4f, 14f),
-                            ),
-                        ),
+                        style = Stroke(width = stroke, cap = StrokeCap.Round),
                     )
                 }
+            }
+            if (state == PowerState.Starting || state == PowerState.Paused) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(diameter),
+                    color = if (state == PowerState.Paused) Warning else Accent,
+                    strokeWidth = 5.dp,
+                    trackColor = Color.Transparent,
+                    strokeCap = StrokeCap.Round,
+                )
             }
             Box(
                 modifier = Modifier
@@ -189,6 +164,8 @@ fun PowerButton(
             text = statusLabel.uppercase(),
             style = MaterialTheme.typography.labelLarge,
             color = accent,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(2.dp))
         Text(
@@ -201,6 +178,8 @@ fun PowerButton(
             },
             style = MaterialTheme.typography.bodyMedium,
             color = TextSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

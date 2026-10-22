@@ -45,17 +45,18 @@ import com.dataproxy.ui.theme.Warning
 import com.dataproxy.ui.viewmodel.MainViewModel
 import com.dataproxy.util.AntiKillStep
 
-enum class Tab { Home, ListenAddress, Devices, Auth, AntiKill }
+enum class Tab { Home, Settings, ListenAddress, Devices, Auth, AntiKill }
 
 @Composable
 fun AppNav(
     viewModel: MainViewModel,
     tab: Tab,
-    onTabChange: (Tab) -> Unit,
+    onNavigate: (Tab) -> Unit,
+    onBack: () -> Unit,
     onToggle: () -> Unit,
     onHeaderClick: () -> Unit,
     themeMode: ThemeMode,
-    onCycleTheme: () -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
     showPermsDialog: Boolean,
     notifApplicable: Boolean,
     notifGranted: Boolean,
@@ -90,29 +91,37 @@ fun AppNav(
                 Tab.Home -> HomeScreen(
                     viewModel = viewModel,
                     onToggle = onToggle,
-                    onOpenListen = { onTabChange(Tab.ListenAddress) },
-                    onOpenDevices = { onTabChange(Tab.Devices) },
-                    onOpenAuth = { onTabChange(Tab.Auth) },
-                    onOpenAntiKill = { onTabChange(Tab.AntiKill) },
-                    themeMode = themeMode,
-                    onCycleTheme = onCycleTheme,
+                    onOpenListen = { onNavigate(Tab.ListenAddress) },
+                    onOpenDevices = { onNavigate(Tab.Devices) },
+                    onOpenAuth = { onNavigate(Tab.Auth) },
+                    onOpenSettings = { onNavigate(Tab.Settings) },
                     onHeaderClick = onHeaderClick,
+                )
+                Tab.Settings -> SettingsScreen(
+                    viewModel = viewModel,
+                    themeMode = themeMode,
+                    onSetThemeMode = onSetThemeMode,
+                    onOpenListen = { onNavigate(Tab.ListenAddress) },
+                    onOpenDevices = { onNavigate(Tab.Devices) },
+                    onOpenAuth = { onNavigate(Tab.Auth) },
+                    onOpenAntiKill = { onNavigate(Tab.AntiKill) },
+                    onBack = onBack,
                 )
                 Tab.ListenAddress -> ListenAddressScreen(
                     viewModel = viewModel,
-                    onBack = { onTabChange(Tab.Home) },
+                    onBack = onBack,
                 )
                 Tab.Devices -> DevicesScreen(
                     viewModel = viewModel,
-                    onBack = { onTabChange(Tab.Home) },
+                    onBack = onBack,
                 )
                 Tab.Auth -> AuthScreen(
                     viewModel = viewModel,
-                    onBack = { onTabChange(Tab.Home) },
+                    onBack = onBack,
                 )
                 Tab.AntiKill -> AntiKillScreen(
                     viewModel = viewModel,
-                    onBack = { onTabChange(Tab.Home) },
+                    onBack = onBack,
                 )
             }
         }

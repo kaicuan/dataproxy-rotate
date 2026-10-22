@@ -4,7 +4,7 @@ package com.dataproxy.ui.theme
  * User preference for app theme.
  *
  * [System] follows the device dark-mode setting; [Light] / [Dark] override it.
- * The selection is cycled by the theme button in the home header.
+ * The selection is made on the Settings screen.
  */
 enum class ThemeMode(val key: String) {
     System("system"),

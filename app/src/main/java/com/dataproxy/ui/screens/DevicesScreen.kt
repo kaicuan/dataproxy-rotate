@@ -8,14 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,7 +23,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +37,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dataproxy.proxy.ConnectionRegistry
+import com.dataproxy.ui.components.NumberFieldWithSave
+import com.dataproxy.ui.components.ScreenFrame
+import com.dataproxy.ui.components.ScreenLazyColumn
+import com.dataproxy.ui.components.SectionLabel
 import com.dataproxy.ui.components.StatusDot
+import com.dataproxy.ui.components.TopBar
 import com.dataproxy.ui.theme.Accent
 import com.dataproxy.ui.theme.OutlineSoft
+import com.dataproxy.ui.theme.Spacing
 import com.dataproxy.ui.theme.SurfaceLow
 import com.dataproxy.ui.theme.SurfaceMid
 import com.dataproxy.ui.theme.TextMuted
@@ -52,52 +61,59 @@ fun DevicesScreen(
 ) {
     BackHandler(onBack = onBack)
     val devices by viewModel.devices.collectAsStateWithLifecycle()
+    val maxConnections by viewModel.maxConnections.collectAsStateWithLifecycle()
+    var maxText by remember { mutableStateOf(maxConnections.toString()) }
+    LaunchedEffect(maxConnections) { maxText = maxConnections.toString() }
+    val parsedMax = if (maxText.isBlank()) 0 else maxText.toIntOrNull()
+    val maxValid = parsedMax != null && parsedMax in 0..MainViewModel.MAX_CONNECTIONS_LIMIT
+    val canSaveMax = maxValid && parsedMax != maxConnections
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp)
-            .padding(top = 4.dp, bottom = 12.dp),
-    ) {
-        TopBar(
-            title = "Connected devices",
-            onBack = onBack,
-            action = {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SurfaceLow)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = devices.size.toString(),
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                        ),
-                    )
+    ScreenFrame(header = { TopBar(title = "Devices", onBack = onBack) }) {
+        ScreenLazyColumn {
+            item {
+                NumberFieldWithSave(
+                    label = "Max connections",
+                    value = maxText,
+                    onValueChange = { text -> maxText = text.filter { it.isDigit() }.take(4) },
+                    onSave = {
+                        parsedMax?.let {
+                            viewModel.setMaxConnections(it)
+                            maxText = it.toString()
+                        }
+                    },
+                    saveEnabled = canSaveMax,
+                    isError = !maxValid,
+                    supportingText = if (maxValid) {
+                        "0 or blank means unlimited."
+                    } else {
+                        "Enter a value from 0 to ${MainViewModel.MAX_CONNECTIONS_LIMIT}"
+                    },
+                )
+            }
+            item { Spacer(Modifier.height(Spacing.sectionGap)) }
+            item { SectionLabel("Connected devices ${devices.size}") }
+            item { Spacer(Modifier.height(Spacing.itemGap)) }
+            if (devices.isEmpty()) {
+                item { EmptyState() }
+            } else {
+                itemsIndexed(devices, key = { _, d -> d.clientHost }) { index, d ->
+                    Column {
+                        DeviceRow(d)
+                        if (index < devices.lastIndex) {
+                            Spacer(Modifier.height(Spacing.itemGap))
+                        }
+                    }
                 }
-            },
-        )
-        Spacer(Modifier.height(10.dp))
-        if (devices.isEmpty()) {
-            EmptyState()
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(devices, key = { it.clientHost }) { d -> DeviceRow(d) }
             }
         }
     }
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .fillMaxWidth()
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -132,6 +148,7 @@ private fun DeviceRow(device: ConnectionRegistry.DeviceSummary) {
             .clip(RoundedCornerShape(14.dp))
             .background(SurfaceMid)
             .border(1.dp, OutlineSoft, RoundedCornerShape(14.dp))
+            .heightIn(min = 64.dp)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -175,3 +192,4 @@ private fun DeviceRow(device: ConnectionRegistry.DeviceSummary) {
         )
     }
 }
+

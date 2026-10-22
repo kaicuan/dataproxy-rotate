@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
@@ -32,6 +33,11 @@ import com.dataproxy.util.BatteryOptimizationHelper
 import com.dataproxy.util.OemHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private val tabStackSaver = listSaver<List<Tab>, String>(
+    save = { stack -> stack.map { it.name } },
+    restore = { names -> names.map(Tab::valueOf) },
+)
 
 class MainActivity : ComponentActivity() {
 
@@ -62,7 +68,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
             DataProxyTheme(themeMode = themeMode) {
-                var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+                var backStack by rememberSaveable(stateSaver = tabStackSaver) {
+                    mutableStateOf(listOf(Tab.Home))
+                }
+                val tab = backStack.last()
                 var showPermsDialog by remember { mutableStateOf(false) }
                 // When true, dismissing the perms dialog also kicks off the
                 // proxy. Header re-grant clicks set this to false so the
@@ -119,7 +128,16 @@ class MainActivity : ComponentActivity() {
                 AppNav(
                     viewModel = viewModel,
                     tab = tab,
-                    onTabChange = { tab = it },
+                    onNavigate = { target ->
+                        if (backStack.last() != target) {
+                            backStack = backStack + target
+                        }
+                    },
+                    onBack = {
+                        if (backStack.size > 1) {
+                            backStack = backStack.dropLast(1)
+                        }
+                    },
                     onToggle = {
                         onPowerToggle(
                             showPerms = {
@@ -140,7 +158,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     themeMode = themeMode,
-                    onCycleTheme = { viewModel.cycleThemeMode() },
+                    onSetThemeMode = { viewModel.setThemeMode(it) },
                     showPermsDialog = showPermsDialog,
                     notifApplicable = notifApplicable,
                     notifGranted = notifGranted,
