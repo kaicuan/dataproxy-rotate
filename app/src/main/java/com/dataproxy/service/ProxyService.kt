@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import com.dataproxy.DataProxyApplication
 import com.dataproxy.MainActivity
 import com.dataproxy.R
 import com.dataproxy.network.CellularNetworkProvider
@@ -19,6 +20,8 @@ import com.dataproxy.proxy.AuthConfig
 import com.dataproxy.proxy.ConnectionRegistry
 import com.dataproxy.proxy.Socks5Server
 import com.dataproxy.proxy.SpeedSampler
+import com.dataproxy.rotation.RotationController
+import com.dataproxy.rotation.RotationHttpHandler
 import com.dataproxy.util.ByteFormatter
 import com.dataproxy.util.RateUnit
 import kotlinx.coroutines.CoroutineScope
@@ -66,12 +69,18 @@ class ProxyService : Service() {
     private val cellular by lazy { CellularNetworkProvider(applicationContext) }
     private val registry = ConnectionRegistry()
     private val sampler = SpeedSampler()
+    private val rotation: RotationController
+        get() = (application as DataProxyApplication).rotationController
 
     private var server: Socks5Server? = null
     private var startJob: Job? = null
     private var publishJob: Job? = null
     private var cellularWatchJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private val controlHandler: suspend (java.io.InputStream, java.io.OutputStream) -> Unit =
+        { input, output ->
+            RotationHttpHandler(rotation, ::currentAuthConfig).handle(input, output)
+        }
 
     private val _state = MutableStateFlow<State>(State.Stopped)
     val state: StateFlow<State> = _state.asStateFlow()
@@ -179,6 +188,7 @@ class ProxyService : Service() {
                 },
                 authProvider = ::currentAuthConfig,
                 maxConnectionsProvider = ::currentMaxConnections,
+                controlHandler = controlHandler,
             )
             server = srv
             srv.start()

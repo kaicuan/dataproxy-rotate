@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Router
 import androidx.compose.material.icons.rounded.SettingsBrightness
 import androidx.compose.material.icons.rounded.Shield
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dataproxy.rotation.HelperStatus
 import com.dataproxy.ui.components.ScreenFrame
 import com.dataproxy.ui.components.ScreenScrollColumn
 import com.dataproxy.ui.components.SectionLabel
@@ -62,6 +64,7 @@ fun SettingsScreen(
     onOpenDevices: () -> Unit,
     onOpenAuth: () -> Unit,
     onOpenAntiKill: () -> Unit,
+    onOpenRotation: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -70,6 +73,8 @@ fun SettingsScreen(
     val port by viewModel.port.collectAsStateWithLifecycle()
     val devices by viewModel.devices.collectAsStateWithLifecycle()
     val authEnabled by viewModel.authEnabled.collectAsStateWithLifecycle()
+    val rotationEnabled by viewModel.rotationEnabled.collectAsStateWithLifecycle()
+    val rotationHelper by viewModel.rotationHelperStatus.collectAsStateWithLifecycle()
     val activeDeviceCount = devices.count { it.activeConnections > 0 }
 
     val deviceSummary = when {
@@ -77,6 +82,13 @@ fun SettingsScreen(
         activeDeviceCount == 0 -> "${devices.size} seen"
         activeDeviceCount == devices.size -> "$activeDeviceCount online"
         else -> "$activeDeviceCount / ${devices.size} online"
+    }
+
+    val rotationSummary = when {
+        !rotationEnabled -> "Off"
+        rotationHelper is HelperStatus.NeedsSetup -> "On, needs setup"
+        rotationHelper is HelperStatus.NeedsReconnect -> "On, needs reconnect"
+        else -> "On"
     }
 
     ScreenFrame(header = { TopBar(title = "Settings", onBack = onBack) }) {
@@ -110,6 +122,13 @@ fun SettingsScreen(
                 title = "Auth",
                 subtitle = if (authEnabled) "required" else "disabled",
                 onClick = onOpenAuth,
+            )
+            Spacer(Modifier.height(Spacing.itemGap))
+            SettingsRow(
+                icon = Icons.Rounded.Public,
+                title = "Rotation",
+                subtitle = rotationSummary,
+                onClick = onOpenRotation,
             )
 
             Spacer(Modifier.height(Spacing.sectionGap))

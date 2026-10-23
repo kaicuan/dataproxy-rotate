@@ -12,8 +12,8 @@ android {
         applicationId = "com.dataproxy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.4"
+        versionCode = 10
+        versionName = "1.5"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -21,7 +21,7 @@ android {
     }
 
     // Release signing reads from app/keystore/dataproxy-release.jks if present.
-    // The keystore is gitignored — generate your own with the keytool command
+    // The keystore is gitignored. Generate your own with the keytool command
     // in README.md, or download a pre-signed APK from the GitHub Releases page.
     val keystoreFile = file("keystore/dataproxy-release.jks")
     signingConfigs {
@@ -87,6 +87,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.libadb.android)
+    implementation(libs.conscrypt.android)
+    implementation(libs.bcpkix.jdk15to18)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

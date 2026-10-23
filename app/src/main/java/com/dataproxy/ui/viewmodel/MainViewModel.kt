@@ -10,12 +10,19 @@ import android.os.Build
 import android.os.IBinder
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dataproxy.DataProxyApplication
 import com.dataproxy.network.CellularNetworkProvider
 import com.dataproxy.network.CellularTechMonitor
 import com.dataproxy.network.NetworkInterfaceLister
 import com.dataproxy.proxy.ConnectionRegistry
 import com.dataproxy.proxy.Socks5Server
 import com.dataproxy.proxy.SpeedSampler
+import com.dataproxy.rotation.HelperStatus
+import com.dataproxy.rotation.IpCheckServer
+import com.dataproxy.rotation.IpCheckState
+import com.dataproxy.rotation.RotationController
+import com.dataproxy.rotation.RotationStatus
+import com.dataproxy.rotation.SetupState
 import com.dataproxy.service.ProxyService
 import com.dataproxy.ui.theme.ThemeMode
 import com.dataproxy.util.AntiKillPreferences
@@ -94,6 +101,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _autoStartOnBoot = MutableStateFlow(AntiKillPreferences.autoStartOnBoot(app))
     val autoStartOnBoot: StateFlow<Boolean> = _autoStartOnBoot.asStateFlow()
+
+    val rotation: RotationController = (app as DataProxyApplication).rotationController
+    val rotationEnabled: StateFlow<Boolean> = rotation.enabled
+    val rotationDelayMs: StateFlow<Long> = rotation.delayMs
+    val rotationKeepWifiOn: StateFlow<Boolean> = rotation.keepWifiOn
+    val rotationServer: StateFlow<IpCheckServer> = rotation.server
+    val rotationCustomHost: StateFlow<String> = rotation.customHost
+    val rotationCustomPort: StateFlow<Int> = rotation.customPort
+    val rotationStatus: StateFlow<RotationStatus> = rotation.rotationStatus
+    val rotationSetupState: StateFlow<SetupState> = rotation.setupState
+    val rotationIpCheckState: StateFlow<IpCheckState> = rotation.ipCheckState
+    val rotationHelperStatus: StateFlow<HelperStatus> = rotation.helperStatus
 
     private var bound: ProxyService? = null
     private val collectors = mutableListOf<Job>()
@@ -188,6 +207,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _rateUnit.value = next
         prefs.edit().putString(ProxyService.PREF_RATE_UNIT, next.key).apply()
     }
+
+    fun setRotationEnabled(enabled: Boolean) = rotation.setEnabled(enabled)
+
+    fun setRotationDelaySeconds(seconds: Int) = rotation.setDelaySeconds(seconds)
+
+    fun setRotationKeepWifiOn(enabled: Boolean) = rotation.setKeepWifiOn(enabled)
+
+    fun setRotationServer(server: IpCheckServer) = rotation.setServer(server)
+
+    fun setRotationCustomEndpoint(host: String, port: Int) =
+        rotation.setCustomEndpoint(host, port)
+
+    fun checkRotationStatus() = rotation.checkStatus()
+
+    fun requestRotationTest() {
+        rotation.requestRotation()
+    }
+
+    fun beginRotationSetup(pairingPort: Int?, connectPort: Int?) =
+        rotation.beginSetup(pairingPort, connectPort)
+
+    fun reconnectRotation(connectPort: Int?) = rotation.reconnect(connectPort)
+
+    fun checkRotationIp() = rotation.checkIp()
 
     fun start() {
         runCatching {

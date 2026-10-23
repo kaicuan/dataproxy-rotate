@@ -11,6 +11,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.io.InputStream
+import java.io.PushbackInputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -42,6 +44,9 @@ class Socks5Server(
     // proxy is running takes effect on the very next accept() with no
     // restart needed.
     private val maxConnectionsProvider: () -> Int = { DEFAULT_MAX_CONNECTIONS },
+    // First-byte dispatch: SOCKS5 is 0x05, anything else goes here (HTTP
+    // control). Read live so a handler wired after construction still applies.
+    private val controlHandler: (suspend (InputStream, java.io.OutputStream) -> Unit)? = null,
 ) {
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
@@ -144,12 +149,54 @@ class Socks5Server(
                         continue
                     }
                     live.incrementAndGet()
+                    // Peek the first byte to split SOCKS5 from HTTP control.
+                    // Unread it so the chosen handler sees the full stream.
+                    val peeked = PushbackInputStream(client.getInputStream(), 1)
+                    val firstByte = try {
+                        peeked.read().also { if (it >= 0) peeked.unread(it) }
+                    } catch (e: IOException) {
+                        live.decrementAndGet()
+                        runCatching { client.close() }
+                        Log.w(TAG, "peek failed: ${e.message}")
+                        continue
+                    }
+                    if (firstByte < 0) {
+                        live.decrementAndGet()
+                        runCatching { client.close() }
+                        continue
+                    }
+
+                    if (firstByte != 0x05) {
+                        // HTTP control (or garbage). Bounded: close after reply.
+                        val handler = controlHandler
+                        if (handler == null) {
+                            live.decrementAndGet()
+                            runCatching { client.close() }
+                            continue
+                        }
+                        val input = peeked
+                        scope.launch(RelayDispatcher) {
+                            try {
+                                client.tcpNoDelay = true
+                                client.soTimeout = CONTROL_TIMEOUT_MS
+                                handler(input, client.getOutputStream())
+                            } catch (e: Exception) {
+                                Log.d(TAG, "control connection error: ${e.message}")
+                            } finally {
+                                live.decrementAndGet()
+                                runCatching { client.close() }
+                            }
+                        }
+                        continue
+                    }
+
                     val conn = Socks5Connection(
                         clientSocket = client,
                         cellular = cellular,
                         registry = registry,
                         scope = scope,
                         authProvider = authProvider,
+                        clientInput = peeked,
                     )
                     liveConnections.add(conn)
                     // Re-check after publishing. stop() clears `running`
@@ -262,5 +309,8 @@ class Socks5Server(
 
         /** Consecutive accept() failures tolerated before declaring the listener dead. */
         private const val MAX_ACCEPT_FAILURES = 20
+
+        /** Read timeout for a non-SOCKS (HTTP control) connection. */
+        private const val CONTROL_TIMEOUT_MS = 30_000
     }
 }

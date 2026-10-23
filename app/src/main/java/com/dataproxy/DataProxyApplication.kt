@@ -3,9 +3,14 @@ package com.dataproxy
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.dataproxy.rotation.RotationController
 import java.security.Security
 
 class DataProxyApplication : Application() {
+
+    /** Application-scoped so setup can finish after the UI is backgrounded. */
+    val rotationController: RotationController by lazy { RotationController(this) }
+
     override fun onCreate() {
         super.onCreate()
 

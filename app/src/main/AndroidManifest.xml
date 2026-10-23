@@ -26,6 +26,9 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Declared so the Wireless debugging shell can `pm grant` it after the
+         one-time IP rotation setup. Not granted at install time. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
 
     <!-- Package visibility (Android 11+) so OemHelper can resolveActivity() the
          per-manufacturer auto-start / battery / background-activity screens. -->
@@ -76,6 +79,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-controlled SOCKS5 proxy that pins traffic to the cellular network; the service must stay alive to hold the cellular Network handle and keep the listener accepting client connections." />
         </service>
+
+        <receiver
+            android:name=".rotation.PairingCodeReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".service.BootReceiver"

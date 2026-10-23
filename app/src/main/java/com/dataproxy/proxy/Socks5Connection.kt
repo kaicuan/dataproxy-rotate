@@ -29,6 +29,9 @@ class Socks5Connection(
     private val registry: ConnectionRegistry,
     private val scope: CoroutineScope,
     private val authProvider: () -> AuthConfig = { AuthConfig.Disabled },
+    // Pre-peeked stream (PushbackInputStream from the server's first-byte
+    // dispatch). Defaults to the raw socket stream for direct construction.
+    private val clientInput: java.io.InputStream? = null,
 ) {
 
     // Written by this connection's coroutine, read by Socks5Server.stop() on
@@ -52,7 +55,7 @@ class Socks5Connection(
             clientSocket.tcpNoDelay = true
             clientSocket.soTimeout = HANDSHAKE_TIMEOUT_MS
 
-            val input = DataInputStream(clientSocket.getInputStream())
+            val input = DataInputStream(clientInput ?: clientSocket.getInputStream())
             val output = DataOutputStream(clientSocket.getOutputStream())
 
             if (!negotiateMethod(input, output)) return@launch
