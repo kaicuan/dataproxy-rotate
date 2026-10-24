@@ -35,9 +35,11 @@ class PrivilegedHelper(
 
     private val mutex = Mutex()
     private val _status = MutableStateFlow<HelperStatus>(
-        if (prefs.adbPaired) HelperStatus.Unknown else HelperStatus.NeedsSetup,
+        if (prefs.adbPaired) HelperStatus.Checking else HelperStatus.NeedsSetup(),
     )
     val status: StateFlow<HelperStatus> = _status.asStateFlow()
+    private val _paired = MutableStateFlow(prefs.adbPaired)
+    val paired: StateFlow<Boolean> = _paired.asStateFlow()
 
     suspend fun check(): Result<Unit> = execute(OP_STATUS)
 
@@ -48,61 +50,39 @@ class PrivilegedHelper(
     suspend fun applyKeepWifiOn(keep: Boolean): Result<Unit> =
         execute(OP_KEEP_WIFI_ON, if (keep) "1" else "0")
 
-    suspend fun pairAndStart(
-        pairingPort: Int?,
+    fun markNeedsSetup(reason: String? = null) {
+        _status.value = HelperStatus.NeedsSetup(reason)
+    }
+
+    suspend fun pairWithCode(
+        pairingEndpoint: WirelessAdb.Endpoint?,
         pairingCode: String,
-        connectPort: Int?,
     ): Result<Unit> = mutex.withLock {
         _status.value = HelperStatus.Checking
-        val endpoint = if (pairingPort != null && pairingPort in 1..65535) {
-            // Manual port from the setup dialog; adbd is on loopback for
-            // same-device pairing when mDNS is unavailable.
-            WirelessAdb.Endpoint(LOOPBACK, pairingPort)
-        } else {
-            adb.discoverPairingEndpoint()
-                ?: return@withLock Result.failure(
-                    IOException("Could not find the pairing port. Enter it and try again."),
-                )
+        val endpoint = pairingEndpoint ?: adb.discoverPairingEndpoint()
+        if (endpoint == null) {
+            val error = IOException("Could not find the pairing service. Try starting pairing again.")
+            _status.value = HelperStatus.NeedsSetup(error.message)
+            return@withLock Result.failure(error)
         }
         try {
             adb.pair(endpoint.host, endpoint.port, pairingCode)
         } catch (t: Throwable) {
-            _status.value = HelperStatus.NeedsSetup
+            _status.value = HelperStatus.NeedsSetup(describe(t))
             return@withLock Result.failure(IOException(describe(t), t))
         }
 
-        prefs.adbPaired = true
-        connectPort?.let { prefs.manualConnectPort = it }
-        val result = startHelper()
-        result.exceptionOrNull()?.let {
-            _status.value = failureStatus(it)
-        } ?: run {
-            _status.value = HelperStatus.Ready
-        }
-        result
+        setPaired(true)
+        Result.success(Unit)
     }
 
-    suspend fun reconnect(connectPort: Int?): Result<Unit> = mutex.withLock {
-        _status.value = HelperStatus.Checking
-        if (!prefs.adbPaired) {
-            _status.value = HelperStatus.NeedsSetup
-            return@withLock Result.failure(IOException("IP rotation needs a one-time setup."))
-        }
-        connectPort?.let { prefs.manualConnectPort = it }
-        val result = startHelper()
-        result.exceptionOrNull()?.let {
-            _status.value = failureStatus(it)
-        } ?: run {
-            _status.value = HelperStatus.Ready
-        }
-        result
-    }
+    suspend fun startPairedHelper(): Result<Unit> = execute(OP_STATUS)
 
     private suspend fun execute(operation: String, argument: String? = null): Result<Unit> =
         mutex.withLock {
             _status.value = HelperStatus.Checking
             if (!prefs.adbPaired) {
-                _status.value = HelperStatus.NeedsSetup
+                _status.value = HelperStatus.NeedsSetup("Wireless debugging pairing is required.")
                 return@withLock Result.failure(IOException("IP rotation needs a one-time setup."))
             }
 
@@ -136,19 +116,17 @@ class PrivilegedHelper(
                     Result.failure(IOException(second.message))
                 }
                 Call.TransportFailure -> {
-                    _status.value = HelperStatus.NeedsReconnect(
-                        "IP rotation stopped responding.",
-                    )
-                    Result.failure(IOException("IP rotation stopped responding."))
+                    val reason = "Wireless debugging is not responding. Check that it is on and try setup again."
+                    _status.value = HelperStatus.NeedsSetup(reason)
+                    Result.failure(IOException(reason))
                 }
             }
         }
 
     private suspend fun startHelper(): Result<Unit> {
         val endpoint = adb.discoverConnectEndpoint()
-            ?: prefs.manualConnectPort.takeIf { it > 0 }?.let { WirelessAdb.Endpoint(LOOPBACK, it) }
             ?: return Result.failure(
-                IOException("Could not find the connection port. Enter it from Wireless debugging."),
+                IOException("Could not find the connection service. Check Wireless debugging and try again."),
             )
 
         var manager: AbsAdbConnectionManager? = null
@@ -159,10 +137,10 @@ class PrivilegedHelper(
             Result.success(Unit)
         } catch (t: Throwable) {
             if (t is AdbAuthenticationFailedException) {
-                prefs.adbPaired = false
+                setPaired(false)
                 Result.failure(IOException("Wireless debugging no longer recognizes DataProxy.", t))
             } else if (t is AdbPairingRequiredException) {
-                prefs.adbPaired = false
+                setPaired(false)
                 Result.failure(IOException("Wireless debugging needs to be paired again.", t))
             } else {
                 Result.failure(IOException(describe(t), t))
@@ -320,11 +298,18 @@ class PrivilegedHelper(
             it is AdbAuthenticationFailedException || it is AdbPairingRequiredException
         }
         return if (needsPairing) {
-            prefs.adbPaired = false
-            HelperStatus.NeedsSetup
+            setPaired(false)
+            HelperStatus.NeedsSetup(t.message ?: "Wireless debugging pairing is required.")
         } else {
-            HelperStatus.NeedsReconnect(t.message ?: "Could not reconnect.")
+            HelperStatus.NeedsSetup(
+                t.message ?: "Wireless debugging is unavailable. Check that it is on and try setup again.",
+            )
         }
+    }
+
+    private fun setPaired(value: Boolean) {
+        prefs.adbPaired = value
+        _paired.value = value
     }
 
     private sealed interface Call {

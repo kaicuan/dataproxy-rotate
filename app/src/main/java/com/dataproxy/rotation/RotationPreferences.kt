@@ -45,11 +45,6 @@ class RotationPreferences(context: Context) {
         get() = prefs.getString(KEY_HELPER_TOKEN, "") ?: ""
         set(value) = prefs.edit().putString(KEY_HELPER_TOKEN, value).apply()
 
-    /** Last connection port the user entered by hand, used when mDNS finds nothing. */
-    var manualConnectPort: Int
-        get() = prefs.getInt(KEY_MANUAL_CONNECT_PORT, -1)
-        set(value) = prefs.edit().putInt(KEY_MANUAL_CONNECT_PORT, value).apply()
-
     fun effectiveHost(): String = when (val s = server) {
         IpCheckServer.Nextcloud -> s.host
         IpCheckServer.Cloudflare -> s.host
@@ -69,8 +64,6 @@ class RotationPreferences(context: Context) {
         private const val KEY_ADB_PAIRED = "rotation_adb_paired"
         private const val KEY_HELPER_PORT = "rotation_helper_port"
         private const val KEY_HELPER_TOKEN = "rotation_helper_token"
-        private const val KEY_MANUAL_CONNECT_PORT = "rotation_manual_connect_port"
-
         const val DEFAULT_DELAY_MS = 1_000L
         const val MIN_DELAY_MS = 1_000L
         const val MAX_DELAY_MS = 60_000L

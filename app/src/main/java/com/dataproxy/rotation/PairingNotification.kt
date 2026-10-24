@@ -1,11 +1,14 @@
 package com.dataproxy.rotation
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.dataproxy.MainActivity
@@ -17,18 +20,30 @@ object PairingNotification {
     const val ACTION_PAIR = "com.dataproxy.ACTION_PAIR_CODE"
 
     fun canPost(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
         val mgr = context.getSystemService(NotificationManager::class.java)
         if (!mgr.areNotificationsEnabled()) return false
         val channel = mgr.getNotificationChannel(CHANNEL_ID)
         return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
     }
 
-    fun show(context: Context) {
+    fun show(
+        context: Context,
+        serviceFound: Boolean = false,
+        statusMessage: String? = null,
+    ) {
         val mgr = context.getSystemService(NotificationManager::class.java)
         ensureChannel(mgr)
 
         val remoteInput = RemoteInput.Builder(KEY_CODE)
-            .setLabel("Pairing code")
+            .setLabel("6-digit pairing code")
             .build()
         val replyFlags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -50,17 +65,20 @@ object PairingNotification {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val title = when {
+            statusMessage != null -> "Pairing failed"
+            serviceFound -> "Pairing service found"
+            else -> "Set up IP rotation"
+        }
+        val message = statusMessage ?: if (serviceFound) {
+            "Enter the pairing code to continue."
+        } else {
+            "Waiting for the Wireless debugging pairing code."
+        }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_proxy)
-            .setContentTitle("Set up IP rotation")
-            .setContentText("Enter the Wireless debugging pairing code.")
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "In Wireless debugging, tap Pair device with pairing code, then enter " +
-                        "the 6-digit code here. DataProxy uses it once to set up airplane " +
-                        "mode control.",
-                ),
-            )
+            .setContentTitle(title)
+            .setContentText(message)
             .setContentIntent(openIntent)
             .addAction(
                 NotificationCompat.Action.Builder(
@@ -70,10 +88,9 @@ object PairingNotification {
                 ).addRemoteInput(remoteInput).build(),
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setOnlyAlertOnce(true)
-            .setAutoCancel(false)
+            .setAutoCancel(true)
             .build()
 
         mgr.notify(NOTIFICATION_ID, notification)

@@ -6,6 +6,7 @@ import android.util.Log
 import com.dataproxy.network.CellularNetworkProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -65,20 +66,39 @@ class RotationController(context: Context) {
     val ipCheckState: StateFlow<IpCheckState> = _ipCheckState.asStateFlow()
 
     val helperStatus: StateFlow<HelperStatus> = helper.status
+    val adbPaired: StateFlow<Boolean> = helper.paired
 
     private val rotationBusy = AtomicBoolean(false)
     private val statusBusy = AtomicBoolean(false)
     private val setupBusy = AtomicBoolean(false)
+    // Prevent discovery from reposting the notification after a code reply cancels it.
+    private val pairingStateLock = Any()
 
-    @Volatile private var pendingPairingPort: Int? = null
-    @Volatile private var pendingConnectPort: Int? = null
+    @Volatile private var pendingPairingEndpoint: WirelessAdb.Endpoint? = null
+    @Volatile private var pairingDiscoveryJob: Job? = null
 
     fun setEnabled(value: Boolean) {
         if (value && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         if (_enabled.value == value) return
         prefs.enabled = value
         _enabled.value = value
-        if (value) checkStatus()
+        if (value) {
+            checkStatus()
+        } else {
+            cancelSetup()
+        }
+    }
+
+    fun cancelSetup() {
+        synchronized(pairingStateLock) {
+            if (_setupState.value !is SetupState.Pairing) return
+
+            pairingDiscoveryJob?.cancel()
+            pairingDiscoveryJob = null
+            pendingPairingEndpoint = null
+            PairingNotification.cancel(appContext)
+            _setupState.value = SetupState.Idle
+        }
     }
 
     fun setDelaySeconds(seconds: Int) {
@@ -134,46 +154,55 @@ class RotationController(context: Context) {
         }
     }
 
-    fun beginSetup(pairingPort: Int?, connectPort: Int?) {
+    fun beginSetup(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            _setupState.value = SetupState.Failed("IP rotation requires Android 11 or newer.")
-            return
+            helper.markNeedsSetup("IP rotation requires Android 11 or newer.")
+            _setupState.value = SetupState.Idle
+            return false
         }
-        pendingPairingPort = pairingPort?.takeIf { it in 1..65535 }
-        pendingConnectPort = connectPort?.takeIf { it in 1..65535 }
 
         if (!PairingNotification.canPost(appContext)) {
-            _setupState.value = SetupState.Failed(
-                "Allow notifications so you can enter the pairing code.",
-            )
-            return
+            synchronized(pairingStateLock) {
+                pairingDiscoveryJob?.cancel()
+                pairingDiscoveryJob = null
+                pendingPairingEndpoint = null
+                PairingNotification.cancel(appContext)
+                helper.markNeedsSetup("Allow notifications so you can enter the pairing code.")
+                _setupState.value = SetupState.Idle
+            }
+            return false
         }
 
-        _setupState.value = SetupState.Pairing
-        runCatching { PairingNotification.show(appContext) }
-            .onFailure {
-                _setupState.value = SetupState.Failed("Could not show the pairing notification.")
-            }
+        synchronized(pairingStateLock) {
+            pairingDiscoveryJob?.cancel()
+            pairingDiscoveryJob = null
+            pendingPairingEndpoint = null
+            if (!showPairingPromptLocked()) return false
+        }
+        return true
     }
 
-    fun submitPairingCode(code: String) {
-        val normalized = code.filterNot { it.isWhitespace() }
-        if (normalized.isEmpty()) return
-        if (_setupState.value is SetupState.Connecting || _setupState.value is SetupState.Done) return
+    fun retryHelperStart() {
+        if (!_enabled.value) return
+        if (!helper.paired.value) {
+            beginSetup()
+            return
+        }
         if (!setupBusy.compareAndSet(false, true)) return
 
         _setupState.value = SetupState.Connecting
-        PairingNotification.cancel(appContext)
         scope.launch {
             try {
-                val result = helper.pairAndStart(pendingPairingPort, normalized, pendingConnectPort)
+                val result = helper.startPairedHelper()
                 if (result.isSuccess) {
+                    synchronized(pairingStateLock) {
+                        pendingPairingEndpoint = null
+                    }
                     _setupState.value = SetupState.Done
-                    pendingPairingPort = null
-                    pendingConnectPort = null
                 } else {
-                    _setupState.value = SetupState.Failed(
-                        result.exceptionOrNull()?.message ?: "Pairing failed.",
+                    handleHelperStartFailure(
+                        result.exceptionOrNull()?.message ?: "Could not start IP rotation.",
+                        pairingEndpoint = null,
                     )
                 }
             } finally {
@@ -182,10 +211,149 @@ class RotationController(context: Context) {
         }
     }
 
-    fun reconnect(connectPort: Int?) {
-        if (!_enabled.value) return
+    fun submitPairingCode(code: String) {
+        val normalized = code.filterNot { it.isWhitespace() }
+        var pairingEndpoint: WirelessAdb.Endpoint? = null
+        synchronized(pairingStateLock) {
+            if (!_enabled.value || _setupState.value !is SetupState.Pairing) {
+                PairingNotification.cancel(appContext)
+                return
+            }
+
+            pairingDiscoveryJob?.cancel()
+            pairingDiscoveryJob = null
+            PairingNotification.cancel(appContext)
+            if (normalized.isEmpty()) {
+                showPairingPromptLocked("No pairing code received. Enter the code to try again.")
+                return
+            }
+            if (!setupBusy.compareAndSet(false, true)) return
+
+            pairingEndpoint = pendingPairingEndpoint
+            _setupState.value = SetupState.Connecting
+        }
         scope.launch {
-            helper.reconnect(connectPort?.takeIf { it in 1..65535 })
+            try {
+                val pairing = helper.pairWithCode(pairingEndpoint, normalized)
+                if (pairing.isFailure) {
+                    synchronized(pairingStateLock) {
+                        setupBusy.set(false)
+                        pendingPairingEndpoint = pairingEndpoint
+                        showPairingPromptLocked(
+                            pairing.exceptionOrNull()?.message ?: "Pairing failed. Check the code and try again.",
+                        )
+                    }
+                    return@launch
+                }
+
+                val start = helper.startPairedHelper()
+                if (start.isSuccess) {
+                    synchronized(pairingStateLock) {
+                        pendingPairingEndpoint = null
+                    }
+                    _setupState.value = SetupState.Done
+                } else {
+                    handleHelperStartFailure(
+                        start.exceptionOrNull()?.message ?: "Could not start IP rotation.",
+                        pairingEndpoint,
+                    )
+                }
+            } finally {
+                setupBusy.set(false)
+            }
+        }
+    }
+
+    private fun handleHelperStartFailure(
+        reason: String,
+        pairingEndpoint: WirelessAdb.Endpoint?,
+    ) {
+        helper.markNeedsSetup(reason)
+        if (!helper.paired.value) {
+            synchronized(pairingStateLock) {
+                setupBusy.set(false)
+                pendingPairingEndpoint = pairingEndpoint
+                showPairingPromptLocked(reason)
+            }
+        } else {
+            synchronized(pairingStateLock) {
+                pendingPairingEndpoint = null
+                setupBusy.set(false)
+                _setupState.value = SetupState.Idle
+            }
+        }
+    }
+
+    /** Must be called with [pairingStateLock] held. */
+    private fun showPairingPromptLocked(statusMessage: String? = null): Boolean {
+        if (!_enabled.value) {
+            PairingNotification.cancel(appContext)
+            pendingPairingEndpoint = null
+            helper.markNeedsSetup(statusMessage)
+            _setupState.value = SetupState.Idle
+            return false
+        }
+
+        if (!PairingNotification.canPost(appContext)) {
+            PairingNotification.cancel(appContext)
+            helper.markNeedsSetup(
+                statusMessage ?: "Allow notifications so you can enter the pairing code.",
+            )
+            _setupState.value = SetupState.Idle
+            return false
+        }
+
+        helper.markNeedsSetup(statusMessage)
+        _setupState.value = SetupState.Pairing
+        try {
+            PairingNotification.show(
+                appContext,
+                serviceFound = pendingPairingEndpoint != null,
+                statusMessage = statusMessage,
+            )
+        } catch (_: Throwable) {
+            PairingNotification.cancel(appContext)
+            helper.markNeedsSetup("Could not show the pairing notification.")
+            _setupState.value = SetupState.Idle
+            return false
+        }
+        startPairingDiscoveryLocked(statusMessage)
+        return true
+    }
+
+    /** Must be called with [pairingStateLock] held. */
+    private fun startPairingDiscoveryLocked(statusMessage: String? = null) {
+        if (_setupState.value !is SetupState.Pairing || pendingPairingEndpoint != null) return
+
+        pairingDiscoveryJob = scope.launch {
+            val endpoint = adb.discoverPairingEndpoint(PAIRING_SERVICE_TIMEOUT_MS)
+            if (endpoint == null) {
+                synchronized(pairingStateLock) {
+                    if (_setupState.value is SetupState.Pairing) {
+                        pendingPairingEndpoint = null
+                        pairingDiscoveryJob = null
+                        PairingNotification.cancel(appContext)
+                        helper.markNeedsSetup(
+                            "Could not find the Wireless debugging pairing service. Try setup again.",
+                        )
+                        _setupState.value = SetupState.Idle
+                    }
+                }
+                return@launch
+            }
+
+            synchronized(pairingStateLock) {
+                if (_setupState.value is SetupState.Pairing) {
+                    pendingPairingEndpoint = endpoint
+                    runCatching {
+                        PairingNotification.show(
+                            appContext,
+                            serviceFound = true,
+                            statusMessage = statusMessage,
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -364,5 +532,6 @@ class RotationController(context: Context) {
         private const val MAX_ATTEMPTS = 3
         private const val CELLULAR_TIMEOUT_MS = 15_000L
         private const val NETWORK_TIMEOUT_MS = 20_000L
+        private const val PAIRING_SERVICE_TIMEOUT_MS = 5 * 60_000L
     }
 }

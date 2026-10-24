@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dataproxy.rotation.HelperStatus
+import com.dataproxy.rotation.SetupState
 import com.dataproxy.ui.components.ScreenFrame
 import com.dataproxy.ui.components.ScreenScrollColumn
 import com.dataproxy.ui.components.SectionLabel
@@ -75,6 +76,7 @@ fun SettingsScreen(
     val authEnabled by viewModel.authEnabled.collectAsStateWithLifecycle()
     val rotationEnabled by viewModel.rotationEnabled.collectAsStateWithLifecycle()
     val rotationHelper by viewModel.rotationHelperStatus.collectAsStateWithLifecycle()
+    val rotationSetup by viewModel.rotationSetupState.collectAsStateWithLifecycle()
     val activeDeviceCount = devices.count { it.activeConnections > 0 }
 
     val deviceSummary = when {
@@ -86,8 +88,9 @@ fun SettingsScreen(
 
     val rotationSummary = when {
         !rotationEnabled -> "Off"
+        rotationSetup is SetupState.Pairing || rotationSetup is SetupState.Connecting -> "On, checking"
         rotationHelper is HelperStatus.NeedsSetup -> "On, needs setup"
-        rotationHelper is HelperStatus.NeedsReconnect -> "On, needs reconnect"
+        rotationHelper is HelperStatus.Checking -> "On, checking"
         else -> "On"
     }
 

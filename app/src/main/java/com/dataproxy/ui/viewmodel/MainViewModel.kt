@@ -113,6 +113,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val rotationSetupState: StateFlow<SetupState> = rotation.setupState
     val rotationIpCheckState: StateFlow<IpCheckState> = rotation.ipCheckState
     val rotationHelperStatus: StateFlow<HelperStatus> = rotation.helperStatus
+    val rotationAdbPaired: StateFlow<Boolean> = rotation.adbPaired
 
     private var bound: ProxyService? = null
     private val collectors = mutableListOf<Job>()
@@ -225,10 +226,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         rotation.requestRotation()
     }
 
-    fun beginRotationSetup(pairingPort: Int?, connectPort: Int?) =
-        rotation.beginSetup(pairingPort, connectPort)
+    fun beginRotationSetup(): Boolean = rotation.beginSetup()
 
-    fun reconnectRotation(connectPort: Int?) = rotation.reconnect(connectPort)
+    fun retryRotationHelperStart() = rotation.retryHelperStart()
+
+    fun cancelRotationSetup() = rotation.cancelSetup()
 
     fun checkRotationIp() = rotation.checkIp()
 

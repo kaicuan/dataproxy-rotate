@@ -2,11 +2,8 @@ package com.dataproxy.rotation
 
 /** State of the privileged helper that controls airplane mode. */
 sealed interface HelperStatus {
-    /** Nothing has been checked yet in this process. */
-    data object Unknown : HelperStatus
     data object Checking : HelperStatus
-    data object NeedsSetup : HelperStatus
-    data class NeedsReconnect(val reason: String) : HelperStatus
+    data class NeedsSetup(val reason: String? = null) : HelperStatus
     data object Ready : HelperStatus
 }
 
@@ -33,7 +30,6 @@ sealed interface SetupState {
     data object Idle : SetupState
     data object Pairing : SetupState
     data object Connecting : SetupState
-    data class Failed(val message: String) : SetupState
     data object Done : SetupState
 }
 
