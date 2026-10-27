@@ -132,7 +132,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Point a device's SOCKS5 settings here\nand it'll appear in this list.",
+            text = "Point a device's SOCKS5 or HTTP proxy here\nand it'll appear in this list.",
             color = TextMuted,
             style = MaterialTheme.typography.labelMedium,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -192,4 +192,3 @@ private fun DeviceRow(device: ConnectionRegistry.DeviceSummary) {
         )
     }
 }
-

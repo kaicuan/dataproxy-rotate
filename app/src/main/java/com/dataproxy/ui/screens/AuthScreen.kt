@@ -92,11 +92,12 @@ fun AuthScreen(
             EnableRow(
                 enabled = enabled,
                 description = if (enabled) {
-                    "Clients must send these credentials during the SOCKS5 handshake " +
-                        "(RFC 1929 username/password). Changes apply to new connections."
+                    "Clients must send these credentials for SOCKS5 or HTTP proxy connections. " +
+                        "Credentials are not encrypted between the client and phone. Changes " +
+                        "apply to new connections."
                 } else {
                     "No authentication required. Any client that can reach the listen " +
-                        "address can use the proxy."
+                        "address can use either proxy."
                 },
                 onToggle = viewModel::setAuthEnabled,
             )

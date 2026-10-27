@@ -126,6 +126,15 @@ fun ListenAddressScreen(
                     supportingText = if (portValid) null else "Enter a port from 1 to 65535",
                 )
             }
+            item { Spacer(Modifier.height(Spacing.itemGap)) }
+            item {
+                Text(
+                    text = "Select SOCKS5 or HTTP in your client; this address accepts both. HTTP " +
+                        "supports HTTPS sites through CONNECT; use SOCKS5 for UDP traffic.",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             item { Spacer(Modifier.height(Spacing.sectionGap)) }
             item { SectionLabel("Interface") }
             item { Spacer(Modifier.height(Spacing.itemGap)) }
@@ -209,4 +218,3 @@ private fun AddressRow(
         if (selected) Pill(text = "active", color = Accent)
     }
 }
-

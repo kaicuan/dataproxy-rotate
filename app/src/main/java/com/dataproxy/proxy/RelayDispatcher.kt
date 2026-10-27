@@ -4,8 +4,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import java.util.concurrent.Executors
 
 /**
- * Dispatcher for blocking socket I/O on the SOCKS5 data path: handshake
- * reads/writes, TCP relay copy loops, UDP receive loops. Each of these is a
+ * Dispatcher for blocking socket I/O on proxy data paths: handshakes, HTTP
+ * parsing, TCP relay copy loops, and UDP receive loops. Each of these is a
  * synchronous blocking call, so it occupies one OS thread for as long as it
  * runs, for a relay copy loop, that's the lifetime of the connection.
  *

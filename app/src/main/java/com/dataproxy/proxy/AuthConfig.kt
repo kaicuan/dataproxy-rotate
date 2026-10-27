@@ -1,11 +1,10 @@
 package com.dataproxy.proxy
 
 /**
- * SOCKS5 username/password auth settings (RFC 1929).
+ * Shared proxy username/password auth settings.
  *
- * When [enabled] is false the server advertises only NO_AUTH (method 0x00).
- * When enabled, it advertises only USERNAME/PASSWORD (method 0x02) and
- * validates credentials against [username] / [password].
+ * SOCKS5 uses RFC 1929; HTTP proxy requests use Basic proxy authentication.
+ * Both validate against [username] / [password].
  */
 data class AuthConfig(
     val enabled: Boolean,

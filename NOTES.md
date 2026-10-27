@@ -39,7 +39,7 @@ This file records settled requirements from the conversation for `dataproxy-rota
 - Callers invoke the operation directly and wait for the result. They do not check, repair, or retry the helper.
 - The layer does not watch or repair in the background.
 - An existing library may provide the ADB pairing and client work.
-- Rotation requires Android 11 or newer. The SOCKS5 proxy keeps Android 8+ support.
+- Rotation requires Android 11 or newer. Both proxy protocols keep Android 8+ support.
 
 ## Helper setup
 
@@ -54,8 +54,10 @@ This file records settled requirements from the conversation for `dataproxy-rota
 - A rotation request returns immediately after starting the rotation.
 - A status request reports the current or most recent rotation. No operation ID is needed because only one rotation runs at a time.
 - Share the SOCKS5 listener address and port for rotation control. Do not add a second port.
-- Dispatch SOCKS5 and HTTP connections by the first byte.
-- Use HTTP Basic auth with the existing SOCKS credentials when auth is enabled.
+- The listener accepts SOCKS5 and HTTP proxy traffic simultaneously on that same port.
+- Dispatch SOCKS5 and HTTP connections by the first byte; route HTTP control paths separately from forward-proxy requests.
+- HTTP proxying supports HTTP/1.x absolute-form requests and HTTPS `CONNECT`; it does not carry UDP.
+- Use HTTP Basic auth with the existing proxy credentials when auth is enabled (`Proxy-Authorization` for proxy traffic, `Authorization` for control requests).
 - Allow unauthenticated rotation control when SOCKS auth is disabled.
 
 ## UI
@@ -94,7 +96,7 @@ This file records settled requirements from the conversation for `dataproxy-rota
 - Store the user's preference separately from helper status.
 - If the helper dies, keep the preference on.
 - Do not silently switch rotation off.
-- SOCKS5 proxying continues while rotation is unavailable.
+- Proxying continues while rotation is unavailable.
 
 ## Keep Wi-Fi On
 

@@ -399,7 +399,7 @@ private fun RotationToggle(
                             "On, but unavailable until setup is complete."
                         HelperStatus.Checking -> "Checking whether IP rotation is ready."
                         HelperStatus.Ready ->
-                            "Clients can request cellular IP changes through the SOCKS5 listener."
+                            "Clients can request cellular IP changes through the proxy listener."
                     }
                 },
                 color = TextSecondary,

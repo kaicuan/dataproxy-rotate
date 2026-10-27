@@ -57,7 +57,7 @@ object NetworkInterfaceLister {
             val addresses = runCatching { iface.inetAddresses.toList() }.getOrNull() ?: continue
             for (addr: InetAddress in addresses) {
                 if (addr.isLinkLocalAddress || addr.isAnyLocalAddress) continue
-                if (addr is Inet6Address) continue // SOCKS5 server binds via IPv4 here
+                if (addr is Inet6Address) continue // listener binds via IPv4 here
 
                 val host = addr.hostAddress ?: continue
                 if (addr is Inet4Address && host == "127.0.0.1") continue

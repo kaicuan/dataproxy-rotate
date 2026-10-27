@@ -37,7 +37,7 @@ class CellularNetworkProvider(context: Context) {
         override fun onAvailable(network: Network) {
             // We do NOT call cm.bindProcessToNetwork(network) here.
             // That tags every socket the process creates, including the
-            // SOCKS5 listener, with the cellular netId. The kernel then
+            // proxy listener, with the cellular netId. The kernel then
             // routes the listener's SYN-ACK replies via the cellular
             // route table, so external clients on Wi-Fi never finish the
             // TCP handshake (SYN_RECV → retransmits → time out).

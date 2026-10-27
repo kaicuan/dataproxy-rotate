@@ -9,13 +9,13 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Per-connection book-keeping. Tracks live SOCKS5 sessions, accumulates totals,
+ * Per-connection book-keeping. Tracks live proxy sessions, accumulates totals,
  * and surfaces a [grouped] view aggregated by client IP, that's what the UI
  * means by "connected devices".
  */
 class ConnectionRegistry {
 
-    /** One live SOCKS5 session. */
+    /** One live SOCKS5 or HTTP proxy session. */
     data class Connection(
         val id: Long,
         val clientHost: String,

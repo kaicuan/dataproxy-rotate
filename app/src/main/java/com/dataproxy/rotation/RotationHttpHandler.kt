@@ -1,23 +1,22 @@
 package com.dataproxy.rotation
 
-import android.util.Base64
 import com.dataproxy.proxy.AuthConfig
+import com.dataproxy.proxy.ProxyBasicAuth
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 
 /**
- * HTTP control served on the SOCKS5 listener. It speaks just enough HTTP/1.1
+ * HTTP control served on the shared proxy listener. It speaks just enough HTTP/1.1
  * for one request per connection:
  *
  *   POST /rotate  -> 202 while the rotation runs in the background
  *   GET  /status  -> 200 with the current or most recent rotation
  *
- * When SOCKS auth is on, the same credentials are required via Basic auth.
+ * When proxy auth is on, the same credentials are required via Basic auth.
  */
 class RotationHttpHandler(
     private val controller: RotationController,
@@ -66,7 +65,7 @@ class RotationHttpHandler(
         }
 
         val auth = authProvider()
-        if (auth.enabled && !isAuthorized(authorization, auth)) {
+        if (auth.enabled && !ProxyBasicAuth.isAuthorized(authorization, auth)) {
             respond(
                 output,
                 401,
@@ -143,22 +142,6 @@ class RotationHttpHandler(
             }
         }
         return json
-    }
-
-    private fun isAuthorized(header: String?, auth: AuthConfig): Boolean {
-        if (auth.username.isEmpty() || auth.password.isEmpty()) return false
-        if (header == null || !header.startsWith("Basic ", ignoreCase = true)) return false
-        val decoded = runCatching {
-            String(
-                Base64.decode(header.substring("Basic ".length).trim(), Base64.NO_WRAP),
-                StandardCharsets.UTF_8,
-            )
-        }.getOrNull() ?: return false
-        val expected = "${auth.username}:${auth.password}"
-        return MessageDigest.isEqual(
-            decoded.toByteArray(StandardCharsets.UTF_8),
-            expected.toByteArray(StandardCharsets.UTF_8),
-        )
     }
 
     /**

@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Long-lived host for the SOCKS5 listener.
+ * Long-lived host for the SOCKS5 and HTTP proxy listener.
  *
  * Foreground because:
  * 1. We need to keep TCP accept loops + worker threads alive when the UI
@@ -384,7 +384,7 @@ class ProxyService : Service() {
 
     /**
      * Read auth settings live from the same shared prefs the UI writes to.
-     * Each new SOCKS5 connection re-reads, so toggling auth on the Auth
+     * Each new proxy connection re-reads, so toggling auth on the Auth
      * screen takes effect without restarting the proxy.
      */
     private fun currentAuthConfig(): AuthConfig {

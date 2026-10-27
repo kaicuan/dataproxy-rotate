@@ -32,7 +32,7 @@ class Socks5Connection(
     // Pre-peeked stream (PushbackInputStream from the server's first-byte
     // dispatch). Defaults to the raw socket stream for direct construction.
     private val clientInput: java.io.InputStream? = null,
-) {
+) : ManagedProxyConnection {
 
     // Written by this connection's coroutine, read by Socks5Server.stop() on
     // another thread when it force-closes everything.
@@ -48,9 +48,9 @@ class Socks5Connection(
      * cancellation cannot interrupt. Without this, stopping the proxy leaves
      * established tunnels relaying over cellular indefinitely.
      */
-    fun abort() = closeQuietly()
+    override fun abort() = closeQuietly()
 
-    fun handle(): Job = scope.launch(RelayDispatcher) {
+    override fun handle(): Job = scope.launch(RelayDispatcher) {
         try {
             clientSocket.tcpNoDelay = true
             clientSocket.soTimeout = HANDSHAKE_TIMEOUT_MS

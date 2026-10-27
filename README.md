@@ -4,7 +4,7 @@
 
 # DataProxy
 
-SOCKS5 proxy for Android that pins outbound traffic to the cellular network.
+SOCKS5 and HTTP proxy for Android that pins outbound traffic to the cellular network.
 
 [![Release](https://img.shields.io/github/v/release/Sir-MmD/dataproxy?style=flat-square&color=3DDC97&label=release)](https://github.com/Sir-MmD/dataproxy/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-3DDC97?style=flat-square)](LICENSE)
@@ -15,9 +15,10 @@ SOCKS5 proxy for Android that pins outbound traffic to the cellular network.
 
 ## What it does
 
-DataProxy runs a SOCKS5 server on your phone. Clients on the same Wi-Fi point at
-`phone-ip:1080`, and every socket the proxy opens is bound to the cellular
-network, regardless of which network Android treats as the default.
+DataProxy runs SOCKS5 and HTTP proxies on your phone. Clients on the same Wi-Fi
+point at `phone-ip:1080`, choose either protocol in their proxy settings, and
+every socket DataProxy opens is bound to the cellular network regardless of
+which network Android treats as the default.
 
 ```mermaid
 graph TD
@@ -26,7 +27,7 @@ graph TD
     D["Carrier DNS resolvers"]
     N["Internet"]
 
-    C -->|"SOCKS5 over Wi-Fi"| P
+    C -->|"SOCKS5 or HTTP over Wi-Fi"| P
     P -->|"hostnames resolved over cellular"| D
     P -->|"TCP and UDP, every socket bound to cellular"| N
 ```
@@ -55,15 +56,21 @@ Requires Android 8.0 or newer.
 3. Optionally set a username and password under **Auth**.
 4. Tap the power button.
 
-Then point your client at the phone's IP on that port.
+Then point your client at the phone's IP on that port and select SOCKS5 or HTTP
+as the proxy type. Both are available simultaneously on the same port.
 
-Use remote DNS so hostnames resolve over cellular rather than on the client:
+For SOCKS5, use remote DNS so hostnames resolve over cellular rather than on the
+client. HTTP proxy requests are resolved by DataProxy over cellular.
 
 | Client | Setting |
 |---|---|
-| curl | `--socks5-hostname`, or a `socks5h://` URL |
-| Firefox | enable "Proxy DNS when using SOCKS v5" |
-| Chrome | uses remote DNS with SOCKS5 already |
+| curl, SOCKS5 | `--proxy socks5h://phone-ip:1080` |
+| curl, HTTP | `--proxy http://phone-ip:1080` (HTTPS sites use `CONNECT`) |
+| Firefox | choose SOCKS5 or HTTP in proxy settings; enable remote DNS for SOCKS5 |
+| Chrome | choose SOCKS5 or HTTP in proxy settings |
+
+If authentication is enabled, configure the same username and password in the
+client's proxy settings. HTTP proxy clients use Basic proxy authentication.
 
 ## Staying alive in the background
 
@@ -76,10 +83,13 @@ restart the proxy automatically after a reboot.
 ## Protocol support
 
 - `CONNECT` (TCP) and `UDP ASSOCIATE`, per RFC 1928
+- HTTP/1.x forward proxying and HTTPS tunneling with `CONNECT`
 - Username/password authentication per RFC 1929, toggleable without restarting
+- HTTP proxy authentication with Basic `Proxy-Authorization`, using the same credentials
 - IPv4, IPv6 and domain address types
 - Hostnames resolved through the cellular link's own DNS servers
 - `BIND` is not implemented and returns `REP_COMMAND_NOT_SUPPORTED`
+- HTTP proxy mode does not carry UDP; use SOCKS5 for UDP traffic
 
 ## Limitations
 
@@ -88,9 +98,14 @@ no IPv6 route, so IPv6-only destinations are unreachable. The proxy reports them
 as network-unreachable, and clients will usually then resolve those names
 themselves over whatever network they can reach.
 
-**A SOCKS5 proxy cannot guarantee DNS privacy.** It only ever sees the names a
-client chooses to send it. If a client resolves a hostname locally and connects
-by IP, that lookup never reaches the phone. Enable remote DNS on the client.
+**SOCKS5 DNS depends on the client.** If a client resolves a hostname locally
+and connects by IP, that lookup never reaches the phone. Enable remote DNS in
+the client to resolve through cellular. HTTP proxy requests include the target
+hostname, so DataProxy resolves them over cellular.
+
+**Proxy credentials are not encrypted between the client and phone.** This is
+true for SOCKS5 username/password and HTTP Basic authentication. Use the proxy
+on a trusted local network; HTTPS destinations remain end-to-end encrypted.
 
 ## Permissions
 
